@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+backend/database/security_audit.db
+backend/database/company.db
+slm_infra/honeypot_db.json
+backend/database/company.sql
+backend/database/company.html

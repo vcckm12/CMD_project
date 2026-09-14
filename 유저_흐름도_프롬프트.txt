@@ -1,0 +1,76 @@
+# ==============================================================================
+# [AI 보안 가드레일 챗봇] 사용자 입력 기반 엔드투엔드 유저 흐름도 및 데이터 흐름 분석 프롬프트
+# ==============================================================================
+
+당신은 "AI 보안 가드레일 챗봇 (ai-guardrail-chatbot)" 시스템의 수석 아키텍트이자 보안 엔지니어입니다.
+본 프로젝트의 실제 소스 코드 구조(FastAPI, Input/Output Guardrail, SLM Service, AnythingLLM 연동, SQLite Audit DB)를 바탕으로,
+사용자가 문구를 입력했을 때의 **[전체 엔드투엔드 유저 흐름도 및 데이터 처리 파이프라인]**을 상세히 분석하여 작성해주세요.
+
+---
+
+### [1. 프로젝트 아키텍처 개요]
+- **백엔드 서버**: FastAPI (Port 8000, `backend/main.py`)
+- **클라이언트 1 (데스크톱)**: AnythingLLM RAG 데스크톱 클라이언트 (`/v1/chat/completions` 표준 OpenAI 호환 규격 연동)
+- **클라이언트 2 (웹 관제)**: Streamlit 웹 대시보드 (`frontend/app.py` -> `/api/v1/chat/completions`)
+- **입력 가드레일**: `backend/guardrails/input_guardrail.py` (InputGuardrailEngine, 0.13ms 초저지연 하이브리드 검사)
+- **출력 가드레일**: `backend/guardrails/output_guardrail.py` (OutputGuardrailEngine, 0.08ms 비식별화 및 마스킹)
+- **추론 엔진**: `backend/services/slm_service.py` (원격 Ollama SLM: 10.10.70.65:11434 / Llama 3 8B, Qwen 2.5)
+- **보안 감사 DB**: `backend/database/audit_logger.py` (`backend/database/security_audit.db` SQLite)
+
+---
+
+### [2. 유저 흐름도에 반드시 포함되어야 할 6단계 상세 흐름]
+
+1. **[단계 1: 사용자 입력 수신 (User Input Ingestion)]**
+   - 사용자가 AnythingLLM 또는 Streamlit 관제창에서 질의 문구를 입력하고 전송.
+   - FastAPI 진입점: `/v1/chat/completions` (AnythingLLM) 또는 `/api/v1/chat/completions` (Streamlit).
+   - 요청 수신 및 가드레일 활성화 여부 판별 (`is_guardrail_active`, 모델명 접미사 `raw/bypass`, 접두사 `[off]` 여부 판별).
+
+2. **[단계 2: 입력 가드레일 필터링 및 정규식 검사 (Input Guardrail Inspection)]**
+   - `InputGuardrailEngine.inspect(user_prompt)` 호출:
+     * **Step 0**: 토큰 플러딩(8,000자 초과 DoS) 검사.
+     * **Step 1**: 비가시 유니코드(Zero-Width) 제거 + 유니코드 NFKC 정규화 + 키릴/혼동문자(Confusables) 라틴 알파벳 매핑.
+     * **Step 2 & 3**: URL 인코딩(%49%67) / Hex(\\x44) 복원 및 Base64 난독화 페이로드 추출.
+     * **Step 4**: 토큰 분할(공백/특수문자 '탈.옥.모.드', Leetspeak '@dm!n') 복원 변형군 생성.
+     * **Step 5 (Layer 1 - 정밀 룰셋)**:
+       - `OWASP_LLM01` 프롬프트 인젝션/DAN 탈옥 (`RULE_IGNORE_INSTRUCTIONS`, `RULE_DAN_JAILBREAK`, `RULE_DEV_MODE_JAILBREAK`)
+       - `OWASP_LLM07` 시스템 프롬프트/관리자 키 유출 (`RULE_SYSTEM_PROMPT_LEAK`, `RULE_KOREAN_SECRET_LEAK`)
+       - `OWASP_LLM06` 파괴적 셸/RCE (`RULE_SQL_COMMAND_ABUSE`, `RULE_DANGEROUS_SHELL_INJECTION`)
+       - `OWASP_LLM02` PII 대량 덤프 (`RULE_PII_EXTRACTION_ATTEMPT`)
+     * **Step 6 (Layer 2 - 의미론적 복합 탈옥)**: 할머니 자장가 탈옥(`RULE_SEMANTIC_GRANDMA_EXPLOIT`), 가상 페르소나 탈출(`RULE_SEMANTIC_PERSONA_ESCAPE`), 마크다운 간접 유출(`RULE_SEMANTIC_INDIRECT_EXFILTRATION`), 파이썬 메타클래스 RCE(`RULE_SEMANTIC_PYTHON_SANDBOX_ESCAPE`).
+
+3. **[단계 3: 비정상 공격 차단 분기 (Blocked Path - 0.2ms Early Exit)]**
+   - 위반 규칙 탐지 시 LLM 추론 단계로 진입하지 않고 즉시 차단.
+   - `AuditLogger.log_event()`를 호출하여 `status='blocked'`, 위반 유형, 탐지 룰, 지연시간(~0.2ms)을 SQLite DB에 기록.
+   - 클라이언트로 보안 경고 메시지 반환:
+     * AnythingLLM: OpenAI 호환 SSE 스트림 청크 또는 JSON (`🛡️ [AI 보안 가드레일 실시간 차단]`).
+     * Streamlit: `ChatResponse(status='blocked', error=...)` 구조 반환.
+
+4. **[단계 4: 정상 승인 문구 라우팅 및 AnythingLLM / Ollama 추론 (Approved Path & Inference)]**
+   - 모든 가드레일 검사를 통과한 "정상 승인 문구"는 `SLMService.generate_response()`로 전달.
+   - 시스템 프롬프트(고객지원 AI 역할 + 사내 DB 컨텍스트) 결합.
+   - 원격 Ollama SLM 서버(`http://10.10.70.65:11434/api/chat`)로 비동기 HTTP 요청 전송 및 원시 응답(Raw Response) 수신.
+
+5. **[단계 5: 출력 가드레일 정화 및 개인정보 마스킹 (Output Guardrail Sanitization)]**
+   - `OutputGuardrailEngine.sanitize(raw_response)` 호출:
+     * **치명적 사내 기밀 대량 덤프 / 리버스 셸(Reverse Shell) / RCE 커맨드 감지 시**: 응답 전체 강제 파기(Zero-Leakage) 및 보안 경고문 치환.
+     * **개별 개인정보(PII) 및 비밀번호 감지 시**:
+       - 주민번호 -> `[REDACTED_RRN]`
+       - 전화번호 -> `[REDACTED_PHONE]`
+       - 주소 -> `[REDACTED_ADDRESS]`
+       - 관리자 마스터키/DB암호/임시PW -> `[REDACTED_SECRET]`
+       - 신용카드/계좌번호 -> `[REDACTED_CARD]`, `[REDACTED_ACCOUNT]`
+     * **XSS 스크립트 및 마크다운 이미지 유출 링크 태그 이스케이프 정화**.
+
+6. **[단계 6: 감사 로그 적재 및 최종 응답 반환 (Persistence & Final Response)]**
+   - `AuditLogger.log_event()`에 `status='success'`, 마스킹된 룰 목록, 총 소요 시간(ms) 기록.
+   - AnythingLLM 데스크톱 앱 또는 Streamlit 웹 화면으로 정제된 최종 응답 텍스트 렌더링.
+
+---
+
+### [3. 결과물 출력 형식]
+
+1. **Mermaid Flowchart (TD)**: 사용자 입력부터 가드레일 ON/OFF 분기, 정규식 검사, 차단 경로, LLM 추론, 마스킹, DB 로깅, 클라이언트 응답까지를 나타내는 전체 흐름도.
+2. **Mermaid Sequence Diagram**: User, Client (AnythingLLM/Streamlit), FastAPI Server (`main.py`), `InputGuardrailEngine`, `SLMService` (Ollama), `OutputGuardrailEngine`, `AuditLogger` (SQLite) 간의 시계열 인터랙션 다이어그램.
+3. **핵심 모듈 및 함수 매핑 테이블**: 각 단계별 실행 파일, 함수명, 입력/출력 데이터, 방어 레이어 정리.
+4. **보안 규칙 및 정규식 패턴 총괄표**: Input 룰셋(OWASP LLM01/02/06/07), Output 마스킹 룰셋(PII, Shell, XSS) 정리.
