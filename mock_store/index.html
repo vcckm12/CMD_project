@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VIBE STORE - AI 쇼핑 어시스턴트 샌드박스</title>
+  <title>VIBE STORE - AI 쇼핑 어시스턴트 & 보안 가드레일 샌드박스</title>
   <!-- Tailwind CSS & Pretendard & FontAwesome -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
@@ -24,8 +24,8 @@
 
   <!-- 1. Top Announcement Bar -->
   <div class="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 text-white text-xs py-2 px-4 text-center font-medium flex justify-center items-center gap-2">
-    <span class="bg-blue-500/40 px-2 py-0.5 rounded text-[11px] font-bold">LIVE SANDBOX</span>
-    <span>🛡️ 0.33ms 초저지연 AI 보안 가드레일이 적용된 상용 쇼핑몰 테스트베드입니다.</span>
+    <span class="bg-blue-500/40 px-2 py-0.5 rounded text-[11px] font-bold">LIVE PRODUCTION-READY</span>
+    <span>🛡️ 0.1ms 초저지연 AI 보안 가드레일이 적용된 실시간 쇼핑몰 테스트베드입니다.</span>
   </div>
 
   <!-- 2. Main Navigation -->
@@ -39,7 +39,7 @@
           </div>
           <div>
             <span class="text-xl font-black tracking-tight text-slate-900">VIBE<span class="text-blue-600">.</span>STORE</span>
-            <span class="text-[10px] block text-slate-400 font-semibold uppercase -mt-1 tracking-wider">AI Powered Mall</span>
+            <span class="text-[10px] block text-slate-400 font-semibold uppercase -mt-1 tracking-wider">AI Guardrail Mall</span>
           </div>
         </a>
 
@@ -48,7 +48,7 @@
           <a href="#" class="text-blue-600 font-semibold">전체 상품</a>
           <a href="#" class="hover:text-slate-900 transition">베스트</a>
           <a href="#" class="hover:text-slate-900 transition">의류/패션</a>
-          <a href="#" class="hover:text-slate-900 transition">신발/스니커즈</a>
+          <a href="#" class="hover:text-slate-900 transition">스니커즈</a>
           <a href="#" class="hover:text-slate-900 transition">테크/라이프</a>
         </nav>
       </div>
@@ -59,7 +59,7 @@
           <input
             type="text"
             id="store-search-input"
-            placeholder="AI에게 상품 물어보기..."
+            placeholder="AI에게 상품 질문하기..."
             class="w-full bg-slate-100 border border-slate-200 rounded-full pl-9 pr-4 py-1.5 text-xs focus:outline-none focus:border-blue-500 focus:bg-white transition"
           />
           <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-2.5 text-slate-400 text-xs"></i>
@@ -75,9 +75,9 @@
         </div>
 
         <!-- Cart Icon -->
-        <button class="relative p-2 text-slate-600 hover:text-slate-900 transition">
+        <button id="cart-btn" class="relative p-2 text-slate-600 hover:text-slate-900 transition" onclick="window.VibeChatWidget.openWithPrompt('내 장바구니 목록 보여줘')">
           <i class="fa-solid fa-bag-shopping text-lg"></i>
-          <span class="absolute top-1 right-1 w-4 h-4 bg-blue-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">2</span>
+          <span id="cart-badge" class="absolute top-1 right-1 w-4 h-4 bg-blue-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">2</span>
         </button>
       </div>
     </div>
@@ -88,17 +88,22 @@
     <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white relative overflow-hidden shadow-xl border border-slate-800">
       <div class="relative z-10 max-w-xl">
         <span class="inline-flex items-center gap-1.5 bg-blue-500/20 text-blue-300 text-xs font-semibold px-2.5 py-1 rounded-full border border-blue-400/30 mb-3">
-          <i class="fa-solid fa-sparkles text-amber-400"></i> 2026 AI 개인화 쇼핑 추천
+          <i class="fa-solid fa-sparkles text-amber-400"></i> 2026 AI 지능형 개인화 쇼핑몰
         </span>
         <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">
-          원하는 조건만 말하세요.<br/><span class="text-blue-400">0.3ms AI 가드레일</span>이 안전하게 찾아드립니다.
+          원하는 조건만 말하세요.<br/><span class="text-blue-400">0.1ms AI 가드레일</span>이 안전하게 찾아드립니다.
         </h2>
         <p class="text-slate-300 text-xs sm:text-sm mb-4 line-clamp-2">
-          실시간 재고 상태와 배송 현황까지, 우측 하단의 AI 어시스턴트에게 편하게 질문해 보세요.
+          실시간 재고 상태와 배송 현황, 장바구니 관리까지 우측 하단의 AI 어시스턴트에게 질문해 보세요.
         </p>
-        <button onclick="window.VibeChatWidget.openWithPrompt('5만원 이하 봄/가을 셔츠 추천해줘')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-lg shadow-blue-600/30 transition flex items-center gap-2">
-          <i class="fa-solid fa-comments"></i> AI에게 상품 추천받기
-        </button>
+        <div class="flex gap-3">
+          <button onclick="window.VibeChatWidget.openWithPrompt('5만원 이하 봄/가을 셔츠 추천해줘')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-lg shadow-blue-600/30 transition flex items-center gap-2">
+            <i class="fa-solid fa-comments"></i> AI에게 상품 추천받기
+          </button>
+          <a href="http://localhost:8501" target="_blank" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-4 py-2.5 rounded-lg border border-slate-700 transition flex items-center gap-2">
+            <i class="fa-solid fa-shield-halved text-emerald-400"></i> 보안 관제 대시보드
+          </a>
+        </div>
       </div>
       <!-- Background Abstract Glow -->
       <div class="absolute -right-10 -bottom-10 w-72 h-72 bg-blue-500/20 rounded-full blur-3xl pointer-events-none"></div>
@@ -111,211 +116,24 @@
     <div class="flex items-center justify-between mb-5">
       <div>
         <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
-          <span>인기 상품 카탈로그</span>
-          <span class="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-semibold">8개 등록</span>
+          <span>실시간 상품 카탈로그</span>
+          <span id="product-count-badge" class="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-semibold">8개 등록</span>
         </h3>
-        <p class="text-xs text-slate-500">AI가 실시간 재고(In-Stock) 상태를 확인하여 추천하는 데이터베이스입니다.</p>
+        <p class="text-xs text-slate-500">실시간 데이터베이스(shop.db)와 동기화된 상품 목록 및 재고 상태입니다.</p>
       </div>
       <div class="flex gap-2">
-        <button class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 shadow-sm hover:bg-slate-50">
-          최신순
-        </button>
-        <button class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 shadow-sm hover:bg-slate-50">
+        <button onclick="loadProducts('popular')" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 shadow-sm hover:bg-slate-50">
           인기순
+        </button>
+        <button onclick="loadProducts('price_asc')" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 shadow-sm hover:bg-slate-50">
+          낮은가격순
         </button>
       </div>
     </div>
 
-    <!-- Grid of 8 Products -->
+    <!-- Dynamic Product Grid -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5" id="product-grid">
-      
-      <!-- Card 1 -->
-      <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col group">
-        <div class="relative h-48 bg-slate-100 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=500&auto=format&fit=crop&q=60" alt="린넨 셔츠" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-          <span class="absolute top-2.5 left-2.5 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">BEST</span>
-          <span class="absolute bottom-2.5 right-2.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-300">재고 15개</span>
-        </div>
-        <div class="p-4 flex-1 flex flex-col justify-between">
-          <div>
-            <div class="text-[11px] text-blue-600 font-semibold mb-1">CLOTHES / 상의</div>
-            <h4 class="font-bold text-sm text-slate-900 mb-1 group-hover:text-blue-600 transition">클래식 린넨 오버핏 셔츠</h4>
-            <p class="text-xs text-slate-500 line-clamp-2 mb-2">통기성이 뛰어나고 자연스러운 실루엣을 연출하는 프리미엄 린넨 셔츠</p>
-          </div>
-          <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <div>
-              <span class="text-xs text-slate-400 line-through">₩55,000</span>
-              <div class="text-base font-extrabold text-slate-900">₩45,000</div>
-            </div>
-            <button onclick="window.VibeChatWidget.openWithPrompt('클래식 린넨 오버핏 셔츠 재고랑 사이즈 안내해줘')" class="p-2 rounded-lg bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 text-xs font-semibold transition" title="AI 상담">
-              <i class="fa-solid fa-comment-dots"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Card 2 -->
-      <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col group">
-        <div class="relative h-48 bg-slate-100 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=500&auto=format&fit=crop&q=60" alt="슬랙스 팬츠" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-          <span class="absolute bottom-2.5 right-2.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-300">재고 8개</span>
-        </div>
-        <div class="p-4 flex-1 flex flex-col justify-between">
-          <div>
-            <div class="text-[11px] text-blue-600 font-semibold mb-1">CLOTHES / 하의</div>
-            <h4 class="font-bold text-sm text-slate-900 mb-1 group-hover:text-blue-600 transition">와이드 턱 슬랙스 팬츠</h4>
-            <p class="text-xs text-slate-500 line-clamp-2 mb-2">구김 없는 탄탄한 원단으로 다리가 길어 보이는 깔끔한 와이드 핏 팬츠</p>
-          </div>
-          <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <div>
-              <div class="text-base font-extrabold text-slate-900">₩59,000</div>
-            </div>
-            <button onclick="window.VibeChatWidget.openWithPrompt('와이드 턱 슬랙스 팬츠 어울리는 상의 추천해줘')" class="p-2 rounded-lg bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 text-xs font-semibold transition" title="AI 상담">
-              <i class="fa-solid fa-comment-dots"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Card 3 -->
-      <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col group">
-        <div class="relative h-48 bg-slate-100 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=500&auto=format&fit=crop&q=60" alt="후드 집업" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-          <span class="absolute bottom-2.5 right-2.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-300">재고 23개</span>
-        </div>
-        <div class="p-4 flex-1 flex flex-col justify-between">
-          <div>
-            <div class="text-[11px] text-blue-600 font-semibold mb-1">CLOTHES / 아우터</div>
-            <h4 class="font-bold text-sm text-slate-900 mb-1 group-hover:text-blue-600 transition">헤비코튼 투웨이 후드 집업</h4>
-            <p class="text-xs text-slate-500 line-clamp-2 mb-2">탄탄한 헤비 쭈리 원단과 투웨이 지퍼를 적용한 데일리 에센셜 후드</p>
-          </div>
-          <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <div>
-              <div class="text-base font-extrabold text-slate-900">₩79,000</div>
-            </div>
-            <button onclick="window.VibeChatWidget.openWithPrompt('헤비코튼 후드 집업 색상 옵션 알려줘')" class="p-2 rounded-lg bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 text-xs font-semibold transition" title="AI 상담">
-              <i class="fa-solid fa-comment-dots"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Card 4 (품절 임박) -->
-      <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col group">
-        <div class="relative h-48 bg-slate-100 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1549298916-b41d501d3772?w=500&auto=format&fit=crop&q=60" alt="레더 스니커즈" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-          <span class="absolute top-2.5 left-2.5 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">품절임박</span>
-          <span class="absolute bottom-2.5 right-2.5 bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-300">재고 2개</span>
-        </div>
-        <div class="p-4 flex-1 flex flex-col justify-between">
-          <div>
-            <div class="text-[11px] text-blue-600 font-semibold mb-1">SHOES / 스니커즈</div>
-            <h4 class="font-bold text-sm text-slate-900 mb-1 group-hover:text-blue-600 transition">미니멀 레더 코트 스니커즈</h4>
-            <p class="text-xs text-slate-500 line-clamp-2 mb-2">천연 소가죽의 부드러운 착화감과 군더더기 없는 미니멀 디자인</p>
-          </div>
-          <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <div>
-              <div class="text-base font-extrabold text-slate-900">₩89,000</div>
-            </div>
-            <button onclick="window.VibeChatWidget.openWithPrompt('미니멀 레더 코트 스니커즈 남아있는 사이즈 있어?')" class="p-2 rounded-lg bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 text-xs font-semibold transition" title="AI 상담">
-              <i class="fa-solid fa-comment-dots"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Card 5 (품절 상품 - RAG 검증용) -->
-      <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex flex-col opacity-75 group">
-        <div class="relative h-48 bg-slate-100 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&auto=format&fit=crop&q=60" alt="러닝 슈즈" class="w-full h-full object-cover grayscale" />
-          <div class="absolute inset-0 bg-slate-900/40 flex items-center justify-center">
-            <span class="bg-rose-600 text-white text-xs font-extrabold px-3 py-1 rounded-md shadow-lg">SOLD OUT (품절)</span>
-          </div>
-        </div>
-        <div class="p-4 flex-1 flex flex-col justify-between">
-          <div>
-            <div class="text-[11px] text-slate-400 font-semibold mb-1">SHOES / 러닝화</div>
-            <h4 class="font-bold text-sm text-slate-700 mb-1">데일리 라이트 메쉬 러닝화</h4>
-            <p class="text-xs text-slate-400 line-clamp-2 mb-2">초경량 쿠셔닝으로 장시간 보행에도 발이 편안한 메쉬 러닝화</p>
-          </div>
-          <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <div>
-              <div class="text-base font-bold text-slate-400">₩68,000</div>
-            </div>
-            <span class="text-xs text-rose-500 font-semibold">재입고 예정</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Card 6 -->
-      <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col group">
-        <div class="relative h-48 bg-slate-100 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&auto=format&fit=crop&q=60" alt="무선 헤드폰" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-          <span class="absolute bottom-2.5 right-2.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-300">재고 12개</span>
-        </div>
-        <div class="p-4 flex-1 flex flex-col justify-between">
-          <div>
-            <div class="text-[11px] text-blue-600 font-semibold mb-1">TECH / 음향기기</div>
-            <h4 class="font-bold text-sm text-slate-900 mb-1 group-hover:text-blue-600 transition">노이즈캔슬링 무선 헤드폰 Pro</h4>
-            <p class="text-xs text-slate-500 line-clamp-2 mb-2">몰입감 넘치는 액티브 노이즈 캔슬링과 40시간 연속 재생 배터리</p>
-          </div>
-          <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <div>
-              <div class="text-base font-extrabold text-slate-900">₩189,000</div>
-            </div>
-            <button onclick="window.VibeChatWidget.openWithPrompt('노이즈캔슬링 헤드폰 배터리 시간 얼마야?')" class="p-2 rounded-lg bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 text-xs font-semibold transition" title="AI 상담">
-              <i class="fa-solid fa-comment-dots"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Card 7 -->
-      <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col group">
-        <div class="relative h-48 bg-slate-100 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=500&auto=format&fit=crop&q=60" alt="무선 충전기" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-          <span class="absolute bottom-2.5 right-2.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-300">재고 50개</span>
-        </div>
-        <div class="p-4 flex-1 flex flex-col justify-between">
-          <div>
-            <div class="text-[11px] text-blue-600 font-semibold mb-1">TECH / 충전기기</div>
-            <h4 class="font-bold text-sm text-slate-900 mb-1 group-hover:text-blue-600 transition">마그네틱 3in1 무선 고속충전기</h4>
-            <p class="text-xs text-slate-500 line-clamp-2 mb-2">스마트폰, 무선이어폰, 스마트워치를 한 번에 거치 충전하는 데스크 솔루션</p>
-          </div>
-          <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <div>
-              <div class="text-base font-extrabold text-slate-900">₩34,000</div>
-            </div>
-            <button onclick="window.VibeChatWidget.openWithPrompt('마그네틱 무선충전기 애플워치도 지원돼?')" class="p-2 rounded-lg bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 text-xs font-semibold transition" title="AI 상담">
-              <i class="fa-solid fa-comment-dots"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Card 8 -->
-      <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col group">
-        <div class="relative h-48 bg-slate-100 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=500&auto=format&fit=crop&q=60" alt="메신저백" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-          <span class="absolute bottom-2.5 right-2.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-300">재고 7개</span>
-        </div>
-        <div class="p-4 flex-1 flex flex-col justify-between">
-          <div>
-            <div class="text-[11px] text-blue-600 font-semibold mb-1">ACC / 가방</div>
-            <h4 class="font-bold text-sm text-slate-900 mb-1 group-hover:text-blue-600 transition">비건 레더 미니멀 메신저백</h4>
-            <p class="text-xs text-slate-500 line-clamp-2 mb-2">방수 기능과 태블릿 수납 포켓을 갖춘 세련된 블랙 메신저백</p>
-          </div>
-          <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <div>
-              <div class="text-base font-extrabold text-slate-900">₩54,000</div>
-            </div>
-            <button onclick="window.VibeChatWidget.openWithPrompt('비건 레더 메신저백 13인치 노트북 들어가?')" class="p-2 rounded-lg bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 text-xs font-semibold transition" title="AI 상담">
-              <i class="fa-solid fa-comment-dots"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-
+      <!-- Loaded dynamically via JavaScript -->
     </div>
   </main>
 
@@ -325,13 +143,122 @@
       <div>© 2026 VIBE STORE & AI Security Guardrail Gateway Sandbox. All rights reserved.</div>
       <div class="flex items-center gap-4 text-slate-500 font-medium">
         <a href="http://localhost:8000/docs" target="_blank" class="hover:text-blue-600"><i class="fa-solid fa-plug"></i> Swagger API</a>
-        <a href="http://localhost:8501" target="_blank" class="hover:text-blue-600"><i class="fa-solid fa-chart-line"></i> 보안 관제 UI</a>
+        <a href="http://localhost:8501" target="_blank" class="hover:text-blue-600"><i class="fa-solid fa-chart-line"></i> 보안 관제 UI (Port 8501)</a>
       </div>
     </div>
   </footer>
 
   <!-- 6. Floating AI Chatbot Widget (Embeddable Script) -->
   <script src="widget.js"></script>
+
+  <!-- 7. Dynamic Store Loader Script -->
+  <script>
+    async function loadProducts(sortBy = 'popular') {
+      const grid = document.getElementById('product-grid');
+      try {
+        const resp = await fetch(`http://localhost:8000/api/v1/shop/products?sort_by=${sortBy}&limit=20`);
+        if (!resp.ok) throw new Error('Failed to fetch products');
+        const products = await resp.json();
+        
+        document.getElementById('product-count-badge').innerText = `${products.length}개 등록`;
+        grid.innerHTML = '';
+
+        products.forEach(p => {
+          const isLowStock = p.stock > 0 && p.stock <= 10;
+          const isSoldOut = p.stock <= 0;
+          
+          let stockBadge = `<span class="absolute bottom-2.5 right-2.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-300">재고 ${p.stock}개</span>`;
+          if (isLowStock) {
+            stockBadge = `<span class="absolute bottom-2.5 right-2.5 bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-300">품절임박 (${p.stock}개)</span>`;
+          } else if (isSoldOut) {
+            stockBadge = `<span class="absolute bottom-2.5 right-2.5 bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-300">품절 (0개)</span>`;
+          }
+
+          const card = document.createElement('div');
+          card.className = `bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col group ${isSoldOut ? 'opacity-70' : ''}`;
+          card.innerHTML = `
+            <div class="relative h-48 bg-slate-100 overflow-hidden">
+              <img src="${p.image_url || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=500&auto=format&fit=crop&q=60'}" alt="${p.name}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" onerror="this.src='https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=500&auto=format&fit=crop&q=60'" />
+              <span class="absolute top-2.5 left-2.5 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">ID: ${p.id}</span>
+              ${stockBadge}
+            </div>
+            <div class="p-4 flex-1 flex flex-col justify-between">
+              <div>
+                <div class="text-[11px] text-blue-600 font-semibold mb-1">${p.category}</div>
+                <h4 class="font-bold text-sm text-slate-900 mb-1 group-hover:text-blue-600 transition">${p.name}</h4>
+                <p class="text-xs text-slate-500 line-clamp-2 mb-2">${p.description || ''}</p>
+              </div>
+              <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+                <div>
+                  ${p.original_price ? `<span class="text-xs text-slate-400 line-through">₩${p.original_price.toLocaleString()}</span>` : ''}
+                  <div class="text-base font-extrabold text-slate-900">₩${p.price.toLocaleString()}</div>
+                </div>
+                <div class="flex gap-1.5">
+                  <button onclick="addToCart(${p.id}, '${p.name}')" class="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition" title="장바구니 담기">
+                    <i class="fa-solid fa-cart-plus"></i>
+                  </button>
+                  <button onclick="window.VibeChatWidget.openWithPrompt('${p.name} 재고랑 상세 스펙 알려줘')" class="p-2 rounded-lg bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 text-xs font-semibold transition" title="AI 상담">
+                    <i class="fa-solid fa-comment-dots"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+      } catch (err) {
+        console.error('Failed to load products from API:', err);
+      }
+    }
+
+    async function addToCart(productId, productName) {
+      try {
+        const resp = await fetch('http://localhost:8000/api/v1/shop/cart', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': 'user_vip_hong'
+          },
+          body: JSON.stringify({ product_id: productId, quantity: 1 })
+        });
+        if (resp.ok) {
+          alert(`🛒 '${productName}' 상품이 장바구니에 담겼습니다!`);
+          updateCartBadge();
+        } else {
+          const err = await resp.json();
+          alert(`⚠️ 장바구니 담기 실패: ${err.detail || '오류 발생'}`);
+        }
+      } catch (e) {
+        alert('서버 연결 실패');
+      }
+    }
+
+    async function updateCartBadge() {
+      try {
+        const resp = await fetch('http://localhost:8000/api/v1/shop/cart', {
+          headers: { 'X-User-Id': 'user_vip_hong' }
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          document.getElementById('cart-badge').innerText = data.total_items || 0;
+        }
+      } catch (e) {}
+    }
+
+    // Search input enter event
+    document.getElementById('store-search-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        const q = e.target.value.trim();
+        if (q) {
+          window.VibeChatWidget.openWithPrompt(`${q} 찾아줘`);
+        }
+      }
+    });
+
+    // Initialize
+    loadProducts();
+    updateCartBadge();
+  </script>
 
 </body>
 </html>
