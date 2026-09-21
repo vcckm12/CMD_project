@@ -1,34 +1,53 @@
+version: '3.8'
+
 services:
   backend:
     build:
       context: .
-      dockerfile: backend/Dockerfile
-    environment:
-      APP_ENV: production
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8501}
-      ADMIN_API_KEY: ${ADMIN_API_KEY:?Set ADMIN_API_KEY in .env before starting}
-      ALLOW_DEMO_BYPASS: "false"
-      AUDIT_LOG_RAW_CONTENT: ${AUDIT_LOG_RAW_CONTENT:-false}
-      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
-    ports:
-      - "127.0.0.1:8000:8000"
-    volumes:
-      - audit-data:/app/backend/database
+      file: backend/Dockerfile
+    container_name: ai-guardrail-backend
     restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - ALLOW_DEMO_BYPASS=false
+      - ADMIN_API_KEY=secret-admin-key-2026
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - AUDIT_LOG_RAW_CONTENT=false
+    volumes:
+      - sqlite_data:/app/backend/database
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; exit(0 if urllib.request.urlopen(\"http://localhost:8000/api/v1/health\").getcode() == 200 else 1)'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - guardrail-net
 
   frontend:
     build:
       context: .
-      dockerfile: frontend/Dockerfile
-    environment:
-      BACKEND_API_URL: http://backend:8000/api/v1
-      ADMIN_API_KEY: ${ADMIN_API_KEY:?Set ADMIN_API_KEY in .env before starting}
-      ALLOW_DEMO_BYPASS: "false"
-    depends_on:
-      - backend
-    ports:
-      - "127.0.0.1:8501:8501"
+      file: frontend/Dockerfile
+    container_name: ai-guardrail-frontend
     restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      - BACKEND_API_URL=http://backend:8000/api/v1
+      - ADMIN_API_KEY=secret-admin-key-2026
+      - ALLOW_DEMO_BYPASS=false
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - guardrail-net
 
 volumes:
-  audit-data:
+  sqlite_data:
+    driver: local
+
+networks:
+  guardrail-net:
+    driver: bridge

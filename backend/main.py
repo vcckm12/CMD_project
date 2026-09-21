@@ -12,10 +12,12 @@ import time
 import json
 import uuid
 import logging
-from fastapi import FastAPI, Depends, Header, HTTPException, Query, Path
+import threading
+from collections import defaultdict
+from fastapi import FastAPI, Depends, Header, HTTPException, Query, Path, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
 
 # 내부 모듈 및 Pydantic 스키마 임포트
 from backend.config import settings
@@ -51,6 +53,47 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# =============================================================
+# 슬라이딩 윈도우 기반 IP 속도 제한 (Rate Limiter)
+# =============================================================
+class SlidingWindowRateLimiter:
+    """IP별 분당 요청 수 제한 및 DoS 방어 미들웨어용 유틸리티"""
+    def __init__(self, requests_per_minute: int = 600):
+        self.requests_per_minute = requests_per_minute
+        self.window = 60.0
+        self.clients: Dict[str, List[float]] = defaultdict(list)
+        self.lock = threading.Lock()
+
+    def is_allowed(self, client_ip: str) -> bool:
+        now = time.time()
+        with self.lock:
+            timestamps = self.clients[client_ip]
+            self.clients[client_ip] = [ts for ts in timestamps if now - ts < self.window]
+            if len(self.clients[client_ip]) >= self.requests_per_minute:
+                return False
+            self.clients[client_ip].append(now)
+            return True
+
+
+rate_limiter = SlidingWindowRateLimiter(requests_per_minute=600)
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    # 헬스체크 및 문서/메트릭 엔드포인트는 속도 제한 제외
+    if request.url.path in ("/api/v1/health", "/docs", "/openapi.json", "/metrics", "/api/v1/metrics"):
+        return await call_next(request)
+    client_ip = request.client.host if request.client else "unknown"
+    if not rate_limiter.is_allowed(client_ip):
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Too Many Requests (Rate limit exceeded: 600 req/min)"},
+            headers={"Retry-After": "60"}
+        )
+    return await call_next(request)
+
 
 # 핵심 컴포넌트 싱글톤 객체 인스턴스화 (DAO 주입)
 threat_dao = ThreatIntelDAO()
@@ -693,7 +736,49 @@ async def clear_audit_logs(_: None = Depends(require_admin)):
 
 
 # =============================================================
-# 9. 단독 실행용 엔트리포인트 (uvicorn 실행)
+# 9. Prometheus 호환 메트릭 모니터링 엔드포인트 (/metrics)
+# =============================================================
+@app.get("/metrics", response_class=PlainTextResponse)
+@app.get("/api/v1/metrics", response_class=PlainTextResponse)
+async def get_prometheus_metrics():
+    """Prometheus / Datadog / Grafana 모니터링 연동용 실시간 메트릭 엔드포인트"""
+    stats = audit_logger.get_stats()
+    total = stats.get("total_requests", 0)
+    blocked = stats.get("blocked_requests", 0)
+    masked = stats.get("masked_requests", 0)
+    clean = stats.get("clean_success_requests", 0)
+    rate = stats.get("defense_rate", 100.0)
+    avg_lat = stats.get("avg_latency_ms", 0.0)
+    p95_lat = stats.get("p95_latency_ms", 0.0)
+
+    lines = [
+        "# HELP ai_guardrail_requests_total Total number of LLM gateway requests processed",
+        "# TYPE ai_guardrail_requests_total counter",
+        f"ai_guardrail_requests_total {total}",
+        "# HELP ai_guardrail_blocked_total Total number of blocked malicious requests",
+        "# TYPE ai_guardrail_blocked_total counter",
+        f"ai_guardrail_blocked_total {blocked}",
+        "# HELP ai_guardrail_masked_total Total number of PII masked requests",
+        "# TYPE ai_guardrail_masked_total counter",
+        f"ai_guardrail_masked_total {masked}",
+        "# HELP ai_guardrail_clean_total Total number of clean benign requests",
+        "# TYPE ai_guardrail_clean_total counter",
+        f"ai_guardrail_clean_total {clean}",
+        "# HELP ai_guardrail_defense_rate_percent Defense success rate percentage",
+        "# TYPE ai_guardrail_defense_rate_percent gauge",
+        f"ai_guardrail_defense_rate_percent {rate}",
+        "# HELP ai_guardrail_latency_ms_avg Average inspection latency in milliseconds",
+        "# TYPE ai_guardrail_latency_ms_avg gauge",
+        f"ai_guardrail_latency_ms_avg {avg_lat}",
+        "# HELP ai_guardrail_latency_ms_p95 P95 inspection latency in milliseconds",
+        "# TYPE ai_guardrail_latency_ms_p95 gauge",
+        f"ai_guardrail_latency_ms_p95 {p95_lat}"
+    ]
+    return "\n".join(lines) + "\n"
+
+
+# =============================================================
+# 10. 단독 실행용 엔트리포인트 (uvicorn 실행)
 # =============================================================
 if __name__ == "__main__":
     import uvicorn
