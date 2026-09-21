@@ -122,6 +122,7 @@ class ShopDAO:
         """기본 상품 및 주문 데이터 시딩"""
         cur = conn.cursor()
         products = [
+            ("폴로 랄프로렌 클래식 핏 샴브레이 셔츠", "상의", 219000, 239000, 12, "인디고 스톤 워싱 처리된 빈티지 코튼 소재, 여유로운 클래식 핏과 가슴의 멀티 컬러 시그니처 포니 자수 (스타일 번호: 279038)", "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&auto=format&fit=crop", 4.9, 148, "랄프로렌,폴로,셔츠,샴브레이,클래식핏,상의,인디고,데님셔츠,코튼,남성셔츠,279038"),
             ("오버핏 옥스포드 코튼 셔츠", "상의", 45000, 59000, 25, "부드러운 최고급 면 100% 원단으로 제작된 사계절 데일리 오버핏 셔츠", "/store/images/shirt.jpg", 4.9, 320, "셔츠,상의,오버핏,코튼,면,데일리"),
             ("테이퍼드 밴딩 슬랙스", "하의", 39000, 49000, 18, "신축성 있는 스판 혼방으로 편안한 착용감과 슬림한 실루엣을 제공하는 슬랙스", "/store/images/slacks.jpg", 4.8, 195, "바지,슬랙스,하의,팬츠,밴딩,출근룩"),
             ("헤비웨이트 후드 집업", "아우터", 62000, 78000, 12, "밀도 높은 프리미엄 원단으로 보온성과 각 잡힌 핏을 유지하는 후드 집업", "/store/images/hoodie.jpg", 4.9, 410, "후드,아우터,자켓,집업,맨투맨"),
@@ -203,8 +204,18 @@ class ShopDAO:
             params.extend([f"%{category}%", f"%{category}%"])
 
         if query:
-            sql += " AND (name LIKE ? OR description LIKE ? OR tags LIKE ?)"
-            params.extend([f"%{query}%", f"%{query}%", f"%{query}%"])
+            stopwords = {"추천", "추천해줘", "추천해", "보여줘", "알려줘", "조회해줘", "골라줘", "가격이랑", "가격", "재고", "있어", "있나요", "어디", "얼마", "얼마야", "해주세요", "원", "만원", "조건", "상품", "관련", "제품"}
+            import re
+            raw_tokens = [w.strip() for w in re.split(r"[\s,]+", query) if len(w.strip()) >= 2]
+            clean_tokens = [t for t in raw_tokens if t not in stopwords]
+            tokens_to_search = clean_tokens if clean_tokens else raw_tokens
+
+            if tokens_to_search:
+                token_clauses = []
+                for t in tokens_to_search:
+                    token_clauses.append("(name LIKE ? OR description LIKE ? OR tags LIKE ?)")
+                    params.extend([f"%{t}%", f"%{t}%", f"%{t}%"])
+                sql += f" AND ({' OR '.join(token_clauses)})"
 
         # 정렬 기준 매핑
         if sort_by == "price_asc":

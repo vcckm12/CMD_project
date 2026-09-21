@@ -108,7 +108,7 @@ class SLMService:
             return self.shop_tools.execute_tool("verify_coupon", {"coupon_code": code, "order_amount": 50000}, session_user_id)
 
         # 6. 상품 추천 / 검색 의도
-        if any(k in p for k in ("추천", "셔츠", "바지", "슬랙스", "후드", "신발", "스니커즈", "헤드폰", "충전기", "가방", "양말", "골라줘", "재고", "얼마", "가격", "사이즈", "인기", "신상")):
+        if any(k in p for k in ("추천", "셔츠", "바지", "슬랙스", "후드", "신발", "스니커즈", "헤드폰", "충전기", "가방", "양말", "골라줘", "재고", "얼마", "가격", "사이즈", "인기", "신상", "샴브레이", "랄프로렌", "폴로", "데님", "279038")):
             max_price = None
             price_match = re.search(r"(\d+)\s*만\s*원?", prompt)
             if price_match:
@@ -119,7 +119,7 @@ class SLMService:
                     max_price = int(raw_price.group(1))
 
             category = None
-            if any(k in p for k in ("셔츠", "상의", "티셔츠", "코튼")):
+            if any(k in p for k in ("셔츠", "상의", "티셔츠", "코튼", "샴브레이", "랄프로렌", "폴로", "데님")):
                 category = "상의"
             elif any(k in p for k in ("바지", "슬랙스", "하의", "팬츠")):
                 category = "하의"
