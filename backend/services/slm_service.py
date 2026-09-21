@@ -41,14 +41,26 @@ class SLMService:
         self.ollama_url = ollama_url or settings.ollama_url
         self.model_name = model_name or settings.default_model
         self.shop_tools = shop_tools or ShopToolsService()
+        self._is_ollama_available: Optional[bool] = None
+        self._last_ollama_check: float = 0.0
+        self._check_interval: float = 10.0
 
     async def check_health(self) -> bool:
+        now = time.time()
         try:
-            async with httpx.AsyncClient(timeout=2.0) as client:
+            async with httpx.AsyncClient(timeout=0.8) as client:
                 response = await client.get(f"{self.ollama_url}/api/tags")
-                return response.status_code == 200
+                self._is_ollama_available = (response.status_code == 200)
         except Exception:
-            return False
+            self._is_ollama_available = False
+        self._last_ollama_check = now
+        return self._is_ollama_available
+
+    async def _should_try_ollama(self) -> bool:
+        now = time.time()
+        if self._is_ollama_available is None or (now - self._last_ollama_check) > self._check_interval:
+            return await self.check_health()
+        return self._is_ollama_available
 
     async def get_available_models(self) -> List[str]:
         try:
@@ -273,23 +285,26 @@ class SLMService:
             *[{"role": m.get("role", "user"), "content": m.get("content", "")} for m in messages if m.get("role") != "system"],
         ]
 
-        try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=2.0)) as client:
-                response = await client.post(
-                    f"{self.ollama_url}/api/chat",
-                    json={
-                        "model": chosen_model,
-                        "messages": formatted_messages,
-                        "stream": False,
-                        "options": {"temperature": temp, "num_predict": toks}
-                    },
-                )
-                if response.status_code == 200:
-                    content = response.json().get("message", {}).get("content", "").strip()
-                    if content:
-                        return content
-        except Exception as e:
-            logger.debug(f"Ollama inference fallback triggered: {e}")
+        if await self._should_try_ollama():
+            try:
+                async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=1.0)) as client:
+                    response = await client.post(
+                        f"{self.ollama_url}/api/chat",
+                        json={
+                            "model": chosen_model,
+                            "messages": formatted_messages,
+                            "stream": False,
+                            "options": {"temperature": temp, "num_predict": toks}
+                        },
+                    )
+                    if response.status_code == 200:
+                        content = response.json().get("message", {}).get("content", "").strip()
+                        if content:
+                            return content
+            except Exception as e:
+                self._is_ollama_available = False
+                self._last_ollama_check = time.time()
+                logger.debug(f"Ollama inference fallback triggered: {e}")
 
         # Fallback 지능형 응답
         return "안녕하세요! VIBE STORE AI 어시스턴트입니다. 상품 추천, 장바구니, 배송 조회나 주문 취소가 필요하시면 편하게 말씀해 주세요."

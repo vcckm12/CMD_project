@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-[output_guardrail.py - 실시간 출력 가드레일 엔진 (0.08ms 초저지연)]
+[output_guardrail.py - 지능형 책임 연쇄(Chain-of-Responsibility) 출력 가드레일 엔진 (0.08ms 초저지연)]
 - LLM이 생성한 응답 텍스트를 실시간으로 가로채어 사내 기밀 유출(OWASP LLM02), 위험 코드(OWASP LLM06),
   및 쇼핑몰 무단 할인/가격 왜곡(비즈니스 환각)을 방지합니다.
+- 모듈화된 BaseValidator 파이프라인 구조를 적용하여 단일 책임 원칙(SRP) 및 개방-폐쇄 원칙(OCP)을 실현합니다.
 - 사전 컴파일된 정규식 캐시 및 위협 인텔리전스 DB 연동을 통한 무중단 Hot-Reload 지원
 """
+
 import re
 import html
 import time
@@ -12,30 +14,56 @@ import logging
 from typing import Tuple, List, Dict, Any, Optional
 
 from backend.database.threat_intel_dao import ThreatIntelDAO
+from backend.guardrails.base import (
+    BaseValidator,
+    GuardrailAction,
+    ValidationResult,
+    GuardrailContext,
+    GuardrailPipeline
+)
 
 logger = logging.getLogger("ai_guardrail.output_guardrail")
 
 
-class OutputGuardrailEngine:
-    """
-    LLM 생성 텍스트 실시간 검증, 마스킹 및 비식별화 엔진
-    """
-    def __init__(self, threat_dao: Optional[ThreatIntelDAO] = None):
-        self.threat_dao = threat_dao or ThreatIntelDAO()
+# =============================================================
+# 1. 사내 기밀 대량 덤프 방어 검사기 (Circuit Breaker)
+# =============================================================
+class CriticalLeakValidator(BaseValidator):
+    name = "CriticalLeakValidator"
+    layer = "OUTPUT"
 
-        # 1. 치명적 사내 기밀 대량 덤프 패턴 (전체 응답 강제 파기 대상)
+    def __init__(self):
         self.critical_leak_rules = [
             (re.compile(r"(?i)(?:모든\s*제한을\s*무시하고|사내\s*기밀\s*정보를\s*공개|사내\s*기밀\s*(?:데이터|목록|정보)|고객\s*개인정보\s*DB|here\s*is\s*the\s*confidential\s*data|all\s*restrictions\s*ignored)"), "LEAK_UNAUTHORIZED_CONFIDENTIAL_DUMP"),
             (re.compile(r"(?i)(?:고객\s*개인정보\s*목록|고객\s*DB\s*덤프|user\s*database\s*dump|customer\s*database\s*list)"), "LEAK_BULK_PII_EXFILTRATION"),
             (re.compile(r"(?i)(?:시스템\s*프롬프트\s*전문|초기\s*설정\s*지침\s*공개|system\s*prompt\s*dump)"), "LEAK_SYSTEM_PROMPT_DUMP")
         ]
 
-        # 1.5 쇼핑몰 무단 할인/환불/가격 왜곡 방어 (비즈니스 환각 정책 가드)
-        self.discount_hallucination_rules = [
-            (re.compile(r"(?i)(?:특별히|개인적으로|제가\s*임의로|이번만)?\s*(?:\d{1,2}%\s*(?:할인|깎아|디스카운트)|무료로\s*(?:배송|결제|보내|처리)|공짜로|가격을\s*\d+원으로\s*(?:해\s*드릴|조정)|특혜를\s*제공)"), "POLICY_UNAUTHORIZED_DISCOUNT_PROMISE")
-        ]
+    def validate(self, context: GuardrailContext) -> ValidationResult:
+        for compiled_pat, rule_name in self.critical_leak_rules:
+            if compiled_pat.search(context.current_text):
+                block_msg = (
+                    f"[🛡️ CRITICAL SECURITY ALERT: 사내 기밀 정보 대량 유출 및 탈옥 응답({rule_name})이 감지되어, "
+                    f"AI 실시간 보안 가드레일에 의해 응답 전체가 즉시 강제 파기 및 차단되었습니다.]"
+                )
+                return ValidationResult(
+                    action=GuardrailAction.BLOCK,
+                    violation_type="CRITICAL_LEAK",
+                    matched_rule=rule_name,
+                    modified_text=block_msg,
+                    details=f"Critical leak signature matched: {rule_name}"
+                )
+        return ValidationResult(action=GuardrailAction.ALLOW)
 
-        # 2. 위험 시스템 커맨드 & Reverse Shell & RCE 패턴 (전체 응답 강제 파기 대상)
+
+# =============================================================
+# 2. 위험 셸 커맨드 및 RCE 코드 출력 방어 검사기 (Circuit Breaker)
+# =============================================================
+class ShellDangerValidator(BaseValidator):
+    name = "ShellDangerValidator"
+    layer = "OUTPUT"
+
+    def __init__(self):
         self.shell_danger_rules = [
             (re.compile(r"(?i)bash\s+-i\s+>&?\s*/dev/(tcp|udp)/[^\s]+"), "SHELL_REVERSE_BASH"),
             (re.compile(r"(?i)nc\s+(?:-e|-c|\S+\s+-e)\s*(?:/bin/(?:ba)?sh|cmd\.exe)"), "SHELL_REVERSE_NETCAT"),
@@ -56,7 +84,108 @@ class OutputGuardrailEngine:
             (re.compile(r"(?i)type\s+[a-zA-Z]:\\Windows\\System32\\config\\SAM"), "SHELL_SENSITIVE_SAM_READ"),
         ]
 
-        # 3. 개별 PII(개인식별정보) 및 사내 기밀 정보 마스킹 룰셋 (OWASP LLM02)
+    def validate(self, context: GuardrailContext) -> ValidationResult:
+        for compiled_pat, rule_name in self.shell_danger_rules:
+            if compiled_pat.search(context.current_text):
+                block_msg = (
+                    f"[🛡️ CRITICAL SECURITY ALERT: 악성 코드 및 위험 셸 커맨드({rule_name}) 출력이 감지되어, "
+                    f"AI 실시간 보안 가드레일에 의해 스트림이 강제 중단되었습니다.]"
+                )
+                return ValidationResult(
+                    action=GuardrailAction.BLOCK,
+                    violation_type="SHELL_DANGER",
+                    matched_rule=rule_name,
+                    modified_text=block_msg,
+                    details=f"Shell danger signature matched: {rule_name}"
+                )
+        return ValidationResult(action=GuardrailAction.ALLOW)
+
+
+# =============================================================
+# 3. 쇼핑몰 무단 할인/비즈니스 환각 방어 검사기
+# =============================================================
+class DiscountHallucinationValidator(BaseValidator):
+    name = "DiscountHallucinationValidator"
+    layer = "OUTPUT"
+
+    def __init__(self):
+        self.discount_hallucination_rules = [
+            (re.compile(r"(?i)(?:특별히|개인적으로|제가\s*임의로|이번만)?\s*(?:\d{1,2}%\s*(?:할인|깎아|디스카운트)|무료로\s*(?:배송|결제|보내|처리)|공짜로|가격을\s*\d+원으로\s*(?:해\s*드릴|조정)|특혜를\s*제공)"), "POLICY_UNAUTHORIZED_DISCOUNT_PROMISE")
+        ]
+
+    def validate(self, context: GuardrailContext) -> ValidationResult:
+        text = context.current_text
+        modified = False
+        matched = None
+
+        for compiled_pat, rule_name in self.discount_hallucination_rules:
+            if compiled_pat.search(text):
+                modified = True
+                matched = rule_name
+                text = compiled_pat.sub(
+                    "[🛡️ 쇼핑몰 정책 보호: 공식 프로모션 외의 임의 가격 할인이나 무료 배송 약속은 시스템상 불가합니다]",
+                    text
+                )
+
+        if modified:
+            return ValidationResult(
+                action=GuardrailAction.MASK,
+                violation_type="BUSINESS_POLICY_VIOLATION",
+                matched_rule=matched,
+                modified_text=text
+            )
+        return ValidationResult(action=GuardrailAction.ALLOW)
+
+
+# =============================================================
+# 4. XSS 스크립트 및 마크다운 데이터 유출 링크 방어 검사기
+# =============================================================
+class XSSAndExfiltrationValidator(BaseValidator):
+    name = "XSSAndExfiltrationValidator"
+    layer = "OUTPUT"
+
+    def __init__(self):
+        self.xss_and_exfil_patterns = [
+            (re.compile(r"(?i)<\s*script[^>]*>.*?<\s*/\s*script\s*>"), "XSS_SCRIPT_TAG"),
+            (re.compile(r"(?i)<\s*(script|iframe|object|embed|svg|img|body|link|style)[^>]*>"), "XSS_INJECTION_TAG"),
+            (re.compile(r"(?i)(on(error|load|click|mouseover|focus|submit))\s*=\s*['\"][^'\"]*['\"]"), "XSS_EVENT_HANDLER"),
+            (re.compile(r"(?i)javascript\s*:\s*[^\s\"'>]+"), "XSS_JAVASCRIPT_URI"),
+            (re.compile(r"(?i)data\s*:\s*text/html;base64,[A-Za-z0-9+/=]+"), "XSS_DATA_URI"),
+            (re.compile(r"!\[.*?\]\(https?://[^\s)]+(?:/exfil|/data=|\?leak=|\?token=)[^\s)]*\)"), "EXFIL_MARKDOWN_IMAGE_LEAK"),
+        ]
+
+    def validate(self, context: GuardrailContext) -> ValidationResult:
+        text = context.current_text
+        modified = False
+        last_matched = None
+
+        for compiled_pat, rule_name in self.xss_and_exfil_patterns:
+            if compiled_pat.search(text):
+                modified = True
+                last_matched = rule_name
+                if "EXFIL" in rule_name:
+                    text = compiled_pat.sub("[🛡️ BLOCKED_IMAGE_EXFILTRATION_LINK]", text)
+                else:
+                    text = html.escape(text)
+
+        if modified:
+            return ValidationResult(
+                action=GuardrailAction.MASK,
+                violation_type="XSS_OR_EXFILTRATION",
+                matched_rule=last_matched,
+                modified_text=text
+            )
+        return ValidationResult(action=GuardrailAction.ALLOW)
+
+
+# =============================================================
+# 5. 개인식별정보(PII) 및 비밀번호/API키 비식별화 검사기
+# =============================================================
+class PIIMaskingValidator(BaseValidator):
+    name = "PIIMaskingValidator"
+    layer = "OUTPUT"
+
+    def __init__(self):
         self.pii_patterns = [
             (re.compile(r"DEMO_(?:SECRET|RRN|PHONE|ADDRESS|ACCOUNT)_TOKEN(?:=DEMO_SECRET_VALUE)?"), "PII_DEMO_TOKEN"),
             (re.compile(r"\d{6}-[1-4]\d{6}"), "PII_주민등록번호"),
@@ -77,22 +206,81 @@ class OutputGuardrailEngine:
             (re.compile(r"hf_[a-zA-Z0-9]{34,}"), "PII_HUGGINGFACE_KEY"),
         ]
 
-        # 4. XSS 및 마크다운 데이터 유출 링크 패턴 방어
-        self.xss_and_exfil_patterns = [
-            (re.compile(r"(?i)<\s*script[^>]*>.*?<\s*/\s*script\s*>"), "XSS_SCRIPT_TAG"),
-            (re.compile(r"(?i)<\s*(script|iframe|object|embed|svg|img|body|link|style)[^>]*>"), "XSS_INJECTION_TAG"),
-            (re.compile(r"(?i)(on(error|load|click|mouseover|focus|submit))\s*=\s*['\"][^'\"]*['\"]"), "XSS_EVENT_HANDLER"),
-            (re.compile(r"(?i)javascript\s*:\s*[^\s\"'>]+"), "XSS_JAVASCRIPT_URI"),
-            (re.compile(r"(?i)data\s*:\s*text/html;base64,[A-Za-z0-9+/=]+"), "XSS_DATA_URI"),
-            (re.compile(r"!\[.*?\]\(https?://[^\s)]+(?:/exfil|/data=|\?leak=|\?token=)[^\s)]*\)"), "EXFIL_MARKDOWN_IMAGE_LEAK"),
-        ]
+    def validate(self, context: GuardrailContext) -> ValidationResult:
+        text = context.current_text
+        modified = False
+        matched_rules = []
+
+        for compiled_pat, rule_name in self.pii_patterns:
+            if compiled_pat.search(text):
+                modified = True
+                matched_rules.append(rule_name)
+                if rule_name == "PII_비밀번호_기밀키":
+                    text = compiled_pat.sub(
+                        lambda m: m.group(0)[:m.group(0).rfind(m.group(1))] + "[REDACTED_SECRET]",
+                        text
+                    )
+                elif rule_name in ["PII_마스터키_특정", "PII_DB패스워드_특정", "PII_임시비밀번호_특정", "PII_FLAG_시크릿", "PII_OPENAI_APIKEY", "PII_HUGGINGFACE_KEY"]:
+                    text = compiled_pat.sub("[REDACTED_SECRET]", text)
+                elif rule_name == "PII_고객상세주소":
+                    text = compiled_pat.sub("배송지 주소: [REDACTED_ADDRESS]", text)
+                elif rule_name in ["PII_도로명지번주소", "PII_영문주소"]:
+                    text = compiled_pat.sub("[REDACTED_ADDRESS]", text)
+                elif rule_name == "PII_신용카드번호":
+                    text = compiled_pat.sub("[REDACTED_CARD]", text)
+                elif rule_name == "PII_계좌번호":
+                    text = compiled_pat.sub("[REDACTED_ACCOUNT]", text)
+                elif rule_name == "PII_주민등록번호":
+                    text = compiled_pat.sub("[REDACTED_RRN]", text)
+                elif rule_name == "PII_전화번호":
+                    text = compiled_pat.sub("[REDACTED_PHONE]", text)
+                elif rule_name == "PII_이메일":
+                    text = compiled_pat.sub("[REDACTED_EMAIL]", text)
+                elif rule_name == "PII_DEMO_TOKEN":
+                    text = compiled_pat.sub("[REDACTED_DEMO_TOKEN]", text)
+
+        if modified:
+            for r in matched_rules:
+                if r not in context.masked_rules:
+                    context.masked_rules.append(r)
+            return ValidationResult(
+                action=GuardrailAction.MASK,
+                violation_type="PII_DISCLOSURE",
+                matched_rule=", ".join(matched_rules),
+                modified_text=text
+            )
+        return ValidationResult(action=GuardrailAction.ALLOW)
+
+
+# =============================================================
+# 6. 책임 연쇄 출력 가드레일 메인 엔진 (Facade & Coordinator)
+# =============================================================
+class OutputGuardrailEngine:
+    """
+    책임 연쇄 파이프라인을 조립 및 총괄하는 출력 가드레일 엔진
+    """
+    def __init__(self, threat_dao: Optional[ThreatIntelDAO] = None):
+        self.threat_dao = threat_dao or ThreatIntelDAO()
+
+        # 검사기 인스턴스 생성
+        self.leak_validator = CriticalLeakValidator()
+        self.shell_validator = ShellDangerValidator()
+        self.discount_validator = DiscountHallucinationValidator()
+        self.xss_validator = XSSAndExfiltrationValidator()
+        self.pii_validator = PIIMaskingValidator()
+
+        # 파이프라인 조립 (순서 중요: 치명적 유출/셸 차단 -> 비즈니스 환각 -> XSS -> PII 마스킹)
+        self.pipeline = GuardrailPipeline("OutputGuardrailPipeline")
+        self.pipeline.add_validator(self.leak_validator)
+        self.pipeline.add_validator(self.shell_validator)
+        self.pipeline.add_validator(self.discount_validator)
+        self.pipeline.add_validator(self.xss_validator)
+        self.pipeline.add_validator(self.pii_validator)
 
         self.reload_rules()
 
     def reload_rules(self) -> int:
-        """
-        위협 인텔리전스 DB에서 OUTPUT 룰 갱신
-        """
+        """위협 인텔리전스 DB에서 OUTPUT 룰 갱신"""
         try:
             db_rules = self.threat_dao.get_active_rules_by_layer("OUTPUT")
             logger.info(f"OutputGuardrailEngine loaded {len(db_rules)} dynamic output rules from DB.")
@@ -102,81 +290,17 @@ class OutputGuardrailEngine:
             return 0
 
     def sanitize(self, text: str) -> Tuple[str, bool, List[str], float]:
-        start_time = time.perf_counter()
-        sanitized = text
-        is_masked = False
-        matched_rules = []
+        """
+        실시간 LLM 응답 검증 및 마스킹 메인 진입점 (하위 호환 인터페이스)
+        Returns:
+            (sanitized_text: str, is_masked: bool, matched_rules: List[str], latency_ms: float)
+        """
+        context = GuardrailContext(raw_text=text)
+        result, final_context = self.pipeline.execute(context)
 
-        # 1. 사내 기밀 대량 덤프 감지 -> 전체 응답 강제 파기
-        for compiled_pat, rule_name in self.critical_leak_rules:
-            if compiled_pat.search(sanitized):
-                latency = (time.perf_counter() - start_time) * 1000
-                matched_rules.append(rule_name)
-                sanitized = (
-                    f"[🛡️ CRITICAL SECURITY ALERT: 사내 기밀 정보 대량 유출 및 탈옥 응답({rule_name})이 감지되어, "
-                    f"AI 실시간 보안 가드레일에 의해 응답 전체가 즉시 강제 파기 및 차단되었습니다.]"
-                )
-                return sanitized, True, matched_rules, latency
+        # Critical Block (사내 기밀 대량 덤프 또는 위험 셸 커맨드)
+        if result.is_blocked:
+            rule_list = [result.matched_rule] if result.matched_rule else []
+            return result.modified_text or final_context.current_text, True, rule_list, result.latency_ms
 
-        # 1.5 쇼핑몰 무단 할인/환불 약속 감지 -> 정책 차단 및 공식 안내로 치환
-        for compiled_pat, rule_name in self.discount_hallucination_rules:
-            if compiled_pat.search(sanitized):
-                is_masked = True
-                matched_rules.append(rule_name)
-                sanitized = compiled_pat.sub(
-                    "[🛡️ 쇼핑몰 정책 보호: 공식 프로모션 외의 임의 가격 할인이나 무료 배송 약속은 시스템상 불가합니다]",
-                    sanitized
-                )
-
-        # 2. 치명적 셸 커맨드 / 리버스 셸 감지 -> 전체 응답 즉시 강제 파기
-        for compiled_pat, rule_name in self.shell_danger_rules:
-            if compiled_pat.search(sanitized):
-                latency = (time.perf_counter() - start_time) * 1000
-                matched_rules.append(rule_name)
-                sanitized = (
-                    f"[🛡️ CRITICAL SECURITY ALERT: 악성 코드 및 위험 셸 커맨드({rule_name}) 출력이 감지되어, "
-                    f"AI 실시간 보안 가드레일에 의해 스트림이 강제 중단되었습니다.]"
-                )
-                return sanitized, True, matched_rules, latency
-
-        # 3. 마크다운 이미지 탈취 링크 차단 및 XSS 스크립트 HTML 이스케이프 정화
-        for compiled_pat, rule_name in self.xss_and_exfil_patterns:
-            if compiled_pat.search(sanitized):
-                is_masked = True
-                matched_rules.append(rule_name)
-                if "EXFIL" in rule_name:
-                    sanitized = compiled_pat.sub("[🛡️ BLOCKED_IMAGE_EXFILTRATION_LINK]", sanitized)
-                else:
-                    sanitized = html.escape(sanitized)
-
-        # 4. 개별 개인정보(PII) 및 비밀번호 [REDACTED] 정밀 마스킹
-        for compiled_pat, rule_name in self.pii_patterns:
-            if compiled_pat.search(sanitized):
-                is_masked = True
-                matched_rules.append(rule_name)
-                if rule_name == "PII_비밀번호_기밀키":
-                    sanitized = compiled_pat.sub(
-                        lambda m: m.group(0)[:m.group(0).rfind(m.group(1))] + "[REDACTED_SECRET]",
-                        sanitized
-                    )
-                elif rule_name in ["PII_마스터키_특정", "PII_DB패스워드_특정", "PII_임시비밀번호_특정", "PII_FLAG_시크릿", "PII_OPENAI_APIKEY", "PII_HUGGINGFACE_KEY"]:
-                    sanitized = compiled_pat.sub("[REDACTED_SECRET]", sanitized)
-                elif rule_name == "PII_고객상세주소":
-                    sanitized = compiled_pat.sub("배송지 주소: [REDACTED_ADDRESS]", sanitized)
-                elif rule_name in ["PII_도로명지번주소", "PII_영문주소"]:
-                    sanitized = compiled_pat.sub("[REDACTED_ADDRESS]", sanitized)
-                elif rule_name == "PII_신용카드번호":
-                    sanitized = compiled_pat.sub("[REDACTED_CARD]", sanitized)
-                elif rule_name == "PII_계좌번호":
-                    sanitized = compiled_pat.sub("[REDACTED_ACCOUNT]", sanitized)
-                elif rule_name == "PII_주민등록번호":
-                    sanitized = compiled_pat.sub("[REDACTED_RRN]", sanitized)
-                elif rule_name == "PII_전화번호":
-                    sanitized = compiled_pat.sub("[REDACTED_PHONE]", sanitized)
-                elif rule_name == "PII_이메일":
-                    sanitized = compiled_pat.sub("[REDACTED_EMAIL]", sanitized)
-                elif rule_name == "PII_DEMO_TOKEN":
-                    sanitized = compiled_pat.sub("[REDACTED_DEMO_TOKEN]", sanitized)
-
-        latency = (time.perf_counter() - start_time) * 1000
-        return sanitized, is_masked, matched_rules, latency
+        return final_context.current_text, final_context.is_masked, final_context.masked_rules, result.latency_ms

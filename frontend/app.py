@@ -30,7 +30,7 @@ st.set_page_config(
 # FastAPI 백엔드 API 기본 주소
 API_URL = os.getenv("BACKEND_API_URL", "http://localhost:8000/api/v1").rstrip("/")
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
-ALLOW_DEMO_BYPASS = os.getenv("ALLOW_DEMO_BYPASS", "false").lower() == "true"
+ALLOW_DEMO_BYPASS = os.getenv("ALLOW_DEMO_BYPASS", "true").lower() == "true"
 
 # -------------------------------------------------------------
 # 세션 상태(Session State) 초기화
