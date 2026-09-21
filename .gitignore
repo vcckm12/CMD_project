@@ -1,10 +1,29 @@
+# Environments & Virtual Envs
 .env
 .venv/
+venv/
+ENV/
+
+# Python Bytecode & Caches
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
+
+# SQLite & Runtime Databases (Auto-seeded at runtime)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+backend/database/*.db
 backend/database/security_audit.db
 backend/database/company.db
-slm_infra/honeypot_db.json
 backend/database/company.sql
 backend/database/company.html
+slm_infra/honeypot_db.json
+
+# IDE & OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

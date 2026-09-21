@@ -8,6 +8,7 @@
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 
+
 # ==========================================
 # 1. 대화 메시지 기본 단위 모델
 # ==========================================
@@ -191,3 +192,83 @@ class AuditStatsResponse(BaseModel):
     max_latency_ms: float
     blocked_by_layer: Dict[str, int]
     violations_by_type: Dict[str, int]
+
+
+# ==========================================
+# 10. 위협 인텔리전스 및 시그니처 관리 스키마
+# ==========================================
+class ThreatSignatureCreate(BaseModel):
+    """
+    외부 신규 위협 공격 코드 및 시그니처 등록 요청 스키마
+    """
+    rule_name: str = Field(..., min_length=3, max_length=100, description="규칙 고유 식별자 (예: RULE_NEW_JAILBREAK_2026)")
+    pattern: str = Field(..., min_length=1, max_length=2000, description="정규식 또는 매칭 패턴")
+    category: str = Field(default="OWASP_LLM01", description="위협 카테고리 (OWASP_LLM01, OWASP_LLM02, OWASP_LLM06, OWASP_LLM07 등)")
+    target_layer: str = Field(default="INPUT", pattern="^(INPUT|OUTPUT|EXECUTION)$", description="적용 가드레일 계층")
+    description: Optional[str] = Field(default=None, max_length=500, description="공격 상세 설명 또는 CVE 번호")
+    sample_payload: Optional[str] = Field(default=None, max_length=4000, description="실제 공격 페이로드 샘플")
+    severity: str = Field(default="HIGH", pattern="^(CRITICAL|HIGH|MEDIUM|LOW)$", description="위협 심각도")
+    source: str = Field(default="EXTERNAL_INTEL", max_length=50, description="수집 출처 (CVE, REDTEAM, EXTERNAL_INTEL 등)")
+    is_active: bool = Field(default=True, description="규칙 활성화 여부")
+
+
+class ThreatSignatureUpdate(BaseModel):
+    """
+    기존 위협 시그니처 수정 스키마
+    """
+    pattern: Optional[str] = Field(default=None, min_length=1, max_length=2000)
+    category: Optional[str] = None
+    target_layer: Optional[str] = Field(default=None, pattern="^(INPUT|OUTPUT|EXECUTION)$")
+    description: Optional[str] = None
+    sample_payload: Optional[str] = None
+    severity: Optional[str] = Field(default=None, pattern="^(CRITICAL|HIGH|MEDIUM|LOW)$")
+    is_active: Optional[bool] = None
+
+
+class ThreatSignatureResponse(BaseModel):
+    """
+    위협 시그니처 상세 정보 응답 스키마
+    """
+    id: int
+    rule_name: str
+    pattern: str
+    category: str
+    target_layer: str
+    description: Optional[str] = None
+    sample_payload: Optional[str] = None
+    severity: str
+    source: str
+    is_active: bool
+    created_at: str
+    updated_at: str
+
+
+class ThreatSyncResult(BaseModel):
+    """
+    위협 인텔리전스 동기화 및 핫 리로드 결과
+    """
+    status: str
+    total_active_rules: int
+    synced_payloads_count: int
+    message: str
+
+
+# ==========================================
+# 11. 쇼핑몰(E-Commerce) 비즈니스 도메인 스키마
+# ==========================================
+class OrderCreateRequest(BaseModel):
+    product_id: int = Field(..., ge=1, description="주문 상품 ID")
+    quantity: int = Field(default=1, ge=1, le=100, description="주문 수량")
+    recipient_address: str = Field(..., min_length=5, max_length=200, description="배송지 주소")
+    coupon_code: Optional[str] = Field(default=None, max_length=30, description="적용할 할인 쿠폰 코드")
+
+
+class CartAddRequest(BaseModel):
+    product_id: int = Field(..., ge=1, description="상품 ID")
+    quantity: int = Field(default=1, ge=1, le=100, description="담을 수량")
+
+
+class CouponVerifyRequest(BaseModel):
+    coupon_code: str = Field(..., min_length=2, max_length=30, description="확인할 쿠폰 코드")
+    order_amount: int = Field(..., ge=0, description="주문 예정 금액")
+
